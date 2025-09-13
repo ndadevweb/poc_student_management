@@ -1,0 +1,31 @@
+:8080
+
+log
+
+route {
+  mercure {
+    publisher_jwt "i270a0inpp1ngatno8m6h4h9t2d7yww9"
+    subscriber_jwt "i270a0inpp1ngatno8m6h4h9t2d7yww9"
+
+    use_forwarded_headers 1
+
+    # No anonymous connection, only authenticated user with JWT signed
+    anonymous off
+
+    # Allow only requests from url below
+    cors_origins http://localhost:8880
+
+    # Allow frontend app to publish
+    publish_origins http://localhost:8880
+
+    # Keep connections open
+    heartbeat 15s          # keep alive connection
+    dispatch_timeout 5s    # max time to send a message
+    write_timeout 300s     # close SSE connection after 5 minutes without any activities
+
+    # Mercure UI (optional in development)
+    ui
+  }
+
+  respond "Not Found" 404
+}

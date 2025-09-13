@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <title>Test Mercure /demo</title>
+</head>
+<body>
+  <h1>Test Mercure via SSE</h1>
+  <p id="status">Connexion...</p>
+  <ul id="messages"></ul>
+
+  <script>
+    // JWT Mercure valide pour topic /demo
+    const jwt = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJtZXJjdXJlIjp7InN1YnNjcmliZSI6WyIveWVhaCJdLCJwdWJsaXNoIjpbIi95ZWFoIl19fQ.IAKpMBjZb7dFn21SaP0nljspa_d1FkBdinJTeS5FVF8";
+
+    // Définir le cookie pour Mercure (automatiquement lu par le Hub Mercure)
+    document.cookie = "mercureAuthorization=Bearer " + jwt + "; path=/; samesite=strict";
+
+    // URL de souscription Mercure (reverse proxy nginx → mercure)
+    const url = new URL("http://localhost:8882/sse");
+    url.searchParams.append("topic", "/yeah");
+
+    // Initialiser EventSource
+    const es = new EventSource(url);
+
+    const status = document.getElementById("status");
+    const messages = document.getElementById("messages");
+
+    es.onopen = () => {
+      status.textContent = "✅ Connecté à Mercure";
+    };
+
+    es.onmessage = event => {
+      const li = document.createElement("li");
+      li.textContent = "📨 " + event.data;
+      messages.appendChild(li);
+    };
+
+    es.onerror = event => {
+        if (es.readyState === EventSource.CLOSED) {
+            console.warn("🔌 Connexion Mercure fermée.");
+        } else if (es.readyState === EventSource.CONNECTING) {
+            console.warn("🔄 Reconnexion en cours...");
+        } else {
+            console.error("❌ Erreur SSE réelle :", event);
+        }
+    };
+  </script>
+</body>
+</html>

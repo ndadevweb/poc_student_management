@@ -1,0 +1,239 @@
+x-logging-default: &logging-default
+  logging:
+    driver: json-file
+    options:
+      max-size: "10m"
+      max-file: "3"
+
+name: lah
+services:
+  lahhttp:
+    <<: *logging-default
+    container_name: lahhttp
+    image: nginx:1.28.0-alpine
+    ports:
+      - "${BACKEND_PORT:-8880}:80"
+      - "${MERCURE_PORT:-8882}:8882"
+    volumes:
+      - ./docker/nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./docker/nginx/conf.d:/etc/nginx/conf.d:ro
+      - ./backend:/app
+    depends_on:
+      - lahback
+      - lahmercure
+    networks:
+      - lah_network
+    mem_limit: 256m
+    mem_reservation: 64m
+    cpus: "0.5"
+    restart: unless-stopped
+
+  lahfront:
+    <<: *logging-default
+    container_name: lahfront
+    build:
+      context: ./frontend
+      dockerfile: ../docker/nodejs/Dockerfile.dev
+    ports:
+      - "${FRONTEND_PORT:-5173}:5173"
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+    networks:
+      - lah_network
+    environment:
+      - CHOKIDAR_USEPOLLING=true
+      - NODE_ENV=development
+    mem_limit: 1024m
+    mem_reservation: 128M
+    # memswap_limit: 1g
+    cpus: "0.75"
+    # cpuset: "1"
+    restart: unless-stopped
+
+  lahback:
+    <<: *logging-default
+    container_name: lahback
+    build:
+      context: .
+      dockerfile: ./docker/php/Dockerfile.dev
+      args:
+        HOST_UID: ${HOST_UID:-1000}
+        HOST_GID: ${HOST_GID:-1000}
+    environment:
+      APP_ENV: dev
+      APP_DEBUG: "1"
+      PHP_MEMORY_LIMIT: 512M
+      XDEBUG_MODE: ${XDEBUG_MODE:-off}
+      XDEBUG_TRIGGER: "1" # ?XDEBUG_TRIGGER=1 in your URL
+      XDEBUG_CONFIG: "client_host=host.docker.internal client_port=9003"
+      # MERCURE_URL: "http://lahmercure/.well-known/mercure"
+      # MERCURE_PUBLIC_URL: "http://localhost/.well-known/mercure"
+      MERCURE_JWT_KEY: "EhG3ffWNJDuxvi1dUnUe7Bzi6ztXGtna"
+    volumes:
+      - ./backend:/app:delegated
+      - ./docker/php/php.ini:/usr/local/etc/php/php.ini:ro
+    depends_on:
+      - lahdatabase
+      - lahredis
+    networks:
+      - lah_network
+    expose:
+      - 9000
+    working_dir: /app
+    mem_limit: 1024m
+    mem_reservation: 64m
+    cpus: "0.5"
+    restart: unless-stopped
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+
+  lahdatabase:
+    <<: *logging-default
+    container_name: lahdatabase
+    image: postgres:${POSTGRES_VERSION:-16}-alpine
+    environment:
+      POSTGRES_DB: lah_dbname
+      POSTGRES_USER: lah_dbuser
+      POSTGRES_PASSWORD: lah_dbpass
+      TZ: Europe/Paris
+      POSTGRES_INITDB_ARGS: "--encoding=UTF8 --locale=fr_FR.UTF-8"
+    volumes:
+      - lahdatabase_database_data:/var/lib/postgresql/data:rw
+    # - ./docker/postgres/init:/docker-entrypoint-initdb.d:ro
+    # ports:
+    #   - "5432:5432"  # Uncomment if you use an application to manage database
+    networks:
+      - lah_network
+    stop_grace_period: 60s
+    mem_limit: 512m
+    cpus: "1.0"
+    restart: unless-stopped
+
+  lahadminer:
+    <<: *logging-default
+    container_name: lahadminer
+    image: adminer
+    environment:
+      ADMINER_DEFAULT_SERVER: lahdatabase
+    ports:
+      - "${ADMINER_PORT:-8883}:8080"
+    mem_limit: 256m
+    mem_reservation: 64m
+    cpus: "0.5"
+    restart: unless-stopped
+    depends_on:
+      - lahdatabase
+    networks:
+      - lah_network
+
+  lahmercure:
+    <<: *logging-default
+    container_name: lahmercure
+    image: dunglas/mercure
+    networks:
+      - lah_network
+    volumes:
+      - ./docker/mercure/dev.Caddyfile:/etc/caddy/dev.Caddyfile:ro
+    command: /usr/bin/caddy run --config /etc/caddy/dev.Caddyfile
+    mem_limit: 256m
+    mem_reservation: 64m
+    cpus: "0.25"
+    restart: unless-stopped
+
+  lahredis:
+    <<: *logging-default
+    container_name: lahredis
+    image: redis:8.2.1-alpine3.22
+    networks:
+      - lah_network
+    volumes:
+      - lahredis_redis_data:/data
+      - ./docker/redis/redis.conf:/usr/local/etc/redis/redis.conf:ro
+    mem_limit: 256m
+    mem_reservation: 64m
+    cpus: "0.25"
+    restart: unless-stopped
+
+  lahrediscommander:
+    <<: *logging-default
+    image: rediscommander/redis-commander:latest
+    container_name: lahrediscommander
+    ports:
+      - "${REDISCOMMANDER_PORT:-8081}:8081"
+    platform: linux/amd64
+    environment:
+      - REDIS_HOSTS=local:lahredis:6379
+    depends_on:
+      - lahredis
+    networks:
+      - lah_network
+    restart: unless-stopped
+    mem_limit: 256m
+    cpus: "0.5"
+
+  lahrabbitmq:
+    <<: *logging-default
+    container_name: lahrabbitmq
+    image: rabbitmq:3-management
+    ports:
+      - "${RABBITMQ_PORT:-15672}:15672" # Web Interface
+      # - "5672:5672"
+    environment:
+      RABBITMQ_DEFAULT_USER: user
+      RABBITMQ_DEFAULT_PASS: password
+    volumes:
+      - lahrabbitmq_rabbitmq_data:/var/lib/rabbitmq
+    networks:
+      - lah_network
+    restart: unless-stopped
+    mem_limit: 512m
+    mem_reservation: 64m
+    cpus: "0.5"
+
+  lahmailpit:
+    image: axllent/mailpit:latest
+    container_name: lahmailpit
+    ports:
+      - "${MAILPIT_PORT:-8025}:8025"   # Web Interface
+      # - 1025:1025                    # Use this port in Symfony / Api Platform
+    networks:
+      - lah_network
+    restart: unless-stopped
+    mem_limit: 128M
+    cpus: "0.5"
+
+  lahdozzle:
+    # <<: *logging-default
+    image: amir20/dozzle:latest
+    container_name: lahdozzle
+    environment:
+      DOZZLE_NO_ANALYTICS: false
+    ports:
+      - "${DOZZLE_PORT:-8080}:8080"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    networks:
+      - lah_network
+    restart: unless-stopped
+    mem_limit: 128m
+    cpus: "0.25"
+
+volumes:
+  lahdatabase_database_data:
+    name: lah_database_data
+    driver: local
+  lahredis_redis_data:
+    name: lah_redis_data
+    driver: local
+  lahrabbitmq_rabbitmq_data:
+    name: lah_rabbitmq_data
+    driver: local
+# HTTPS Only
+  # - mercure_data:/data
+  # - mercure_config:/config
+
+networks:
+  lah_network:
+    name: lah_network
+    driver: bridge
