@@ -1,0 +1,9 @@
+services:
+    _defaults:
+        autowire: true
+        autoconfigure: true
+
+    # Expose toutes les factories comme services publics uniquement en environnement test
+    App\Factory\:
+        resource: '../src/Factory'
+        public: true

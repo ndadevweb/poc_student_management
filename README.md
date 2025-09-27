@@ -85,6 +85,24 @@ MAILER_DSN=smtp://lahmailpit:1025?encryption=null&verify_peer=0
 
 
 
+
+## Environment TEST
+
+> Create a database test if it does not exist
+
+php bin/console doctrine:database:create --env=test
+
+> If you do not use migrations use this
+
+php bin/console doctrine:schema:create --env=test
+
+> But if you prefer use migrations use this
+
+php bin/console doctrine:migrations:migrate --env=test --no-interaction
+
+
+
+
 # DOCKER
 
 > To see memory, cpu consomation
