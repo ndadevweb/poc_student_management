@@ -11,6 +11,8 @@ use Zenstruck\Foundry\Persistence\PersistentObjectFactory;
  */
 final class UserFactory extends PersistentObjectFactory
 {
+    const USER_FACTORY_FAKE_PASSWORD = 'passwordtest';
+
     /**
      * @see https://symfony.com/bundles/ZenstruckFoundryBundle/current/index.html#factories-as-services
      *
@@ -38,7 +40,7 @@ final class UserFactory extends PersistentObjectFactory
             'email' => self::faker()->unique()->safeEmail(),
             'firstname' => self::faker()->firstName(),
             'lastname' => self::faker()->lastName(),
-            'password' => 'password',
+            'password' => self::USER_FACTORY_FAKE_PASSWORD,
             'roles' => [],
         ];
     }

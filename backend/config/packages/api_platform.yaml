@@ -5,6 +5,14 @@ api_platform:
         stateless: true
         cache_headers:
             vary: ['Content-Type', 'Authorization', 'Origin']
+
+    swagger:
+        api_keys:
+            JWT:
+                name: Authorization
+                type: header
+        persist_authorization: true
+
     formats:
         jsonld: ['application/ld+json']
         json: ['application/json']
@@ -12,3 +20,5 @@ api_platform:
     resource_class_directories:
         - '%kernel.project_dir%/src/Entity'
         - '%kernel.project_dir%/src/Api'
+
+    show_webby: false
