@@ -4,6 +4,11 @@
 # Put parameters here that don't need to change on each machine where the app is deployed
 # https://symfony.com/doc/current/best_practices.html#use-parameters-for-application-configuration
 parameters:
+    # Cache
+    password_reset.max_requests: 5
+    password_reset.counter_ttl: 3600
+    # Mail
+    mail.from: '%env(MAIL_FROM)%'
 
 services:
     # default configuration for services in *this* file
@@ -11,12 +16,72 @@ services:
         autowire: true      # Automatically injects dependencies in your services.
         autoconfigure: true # Automatically registers your services as commands, event subscribers, etc.
 
-    # makes classes in src/ available to be used as services
-    # this creates a service per class whose id is the fully-qualified class name
-    App\:
-        resource: '../src/'
+    # Structure Clean Architecture
+    App\Domain\: 
+        resource: '../src/Domain/'
+    App\Application\:
+        resource: '../src/Application/'
+    App\Infrastructure\:
+        resource: '../src/Infrastructure/'
+        exclude:
+            - '../src/Infrastructure/Persistence/Doctrine/Migrations'
+            - '../src/Infrastructure/Symfony/Story'
 
-    App\Validator\EmailExists\EmailExistsValidator:
+    # Application / Command & Query Handler
+    App\Application\Auth\UserRegistration\CreateAccount\CreateAccountCommandHandler:
+        arguments:
+            $mailHandler: '@App\Application\Auth\UserRegistration\CreateAccount\CreateAccountMailHandlerService'
+
+
+    # Adapters
+    App\Infrastructure\Adapter\Mail\SymfonyMailerAdapter:
+        arguments:
+            $mailer: '@mailer'
+            $from: '%mail.from%'
+
+    App\Domain\Mail\MailSenderInterface:
+        alias: App\Infrastructure\Adapter\Mail\SymfonyMailerAdapter
+
+    # Services
+    App\Application\Auth\UserRegistration\CreateAccount\CreateAccountMailHandlerService:
+        arguments:
+            $frontCreateAccountConfirmationUrl: '%env(FRONT_CREATE_ACCOUNT_CONFIRMATION_URL)%'
+
+
+
+
+    # Repositories
+    App\Domain\Repository\UserRepositoryInterface:
+        class: App\Infrastructure\Persistence\Doctrine\Repository\UserRepository
+
+
+    # Validators
+    App\Infrastructure\Symfony\Validator\UniqueValue\UniqueValueValidator:
         arguments:
             $locator: !service_locator
-                App\Repository\UserRepository: '@App\Repository\UserRepository'
+                App\Infrastructure\Persistence\Doctrine\Repository\UserRepository: '@App\Infrastructure\Persistence\Doctrine\Repository\UserRepository'
+
+
+    # A ADAPTER LORSQUE LA STRUCTURE CLEAN ARCHI SERA EN PLACE ET FONCTIONNELLE
+
+    # makes classes in src/ available to be used as services
+    # this creates a service per class whose id is the fully-qualified class name
+    # App\:
+    #     resource: '../src/'
+
+
+    # App\Domain\Service\PasswordResetTokenServiceInterface:
+    #     class: App\Service\ForgottenPassword\PasswordResetTokenService
+    #     arguments:
+    #         $tokenCache: '@cache.password_reset_token'
+    #         $countCache: '@cache.password_reset_counter'
+    #         $maxRequests: '%password_reset.max_requests%'
+    #         $counterTtl: '%password_reset.counter_ttl%'
+
+    # App\Domain\Service\PasswordResetMailerInterface:
+    #     class: App\Service\ForgottenPassword\PasswordResetMailer
+
+    # App\Domain\Service\CheckResetPasswordTokenInterface:
+    #     class: App\Service\CheckResetPasswordToken\CheckResetPasswordTokenService
+    #     arguments:
+    #         $tokenCache: '@cache.password_reset_token'

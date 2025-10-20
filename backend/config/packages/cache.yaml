@@ -1,5 +1,19 @@
+parameters:
+    # Replace the placeholder {token} by the token generated
+    password_reset.token_prefix: 'reset_token_{token}'
+
 framework:
     cache:
+        pools:
+            cache.password_reset_token:
+                adapter: cache.adapter.redis
+                provider: '%env(REDIS_URL)%'
+                default_lifetime: 600 # 10min
+            cache.password_reset_counter:
+                adapter: cache.adapter.redis
+                provider: '%env(REDIS_URL)%'
+                default_lifetime: 3600 # 1h
+
         # Unique name of your app: used to compute stable namespaces for cache keys.
         #prefix_seed: your_vendor_name/app_name
 
